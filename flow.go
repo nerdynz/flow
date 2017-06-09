@@ -45,7 +45,10 @@ func (ctx *Context) JSON(status int, data interface{}) {
 	view.JSON(ctx.W, status, data)
 }
 func (ctx *Context) JS(status int, data interface{}) {
-	buf := bytes.NewBufferString("<!DOCTYPE html><html><script src=/js/mithril.js></script><script src=/js/app.js></script><script>var cache = cache || {}; cache.data = ")
+	buf := bytes.NewBufferString(`<!DOCTYPE html>
+		<html>
+			<script data-main="js/app" src="/js/require.js"></script>
+			<script>var cache = cache || {}; cache.data = `) // continues after render
 	json.NewEncoder(buf).Encode(data)
 	buf.Write([]byte("console.log('data', cache.data)"))
 	buf.Write([]byte("</script>"))
