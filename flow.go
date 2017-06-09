@@ -1,6 +1,8 @@
 package flow
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -41,4 +43,25 @@ func (ctx *Context) Publish(cat string, data interface{}) error {
 
 func (ctx *Context) JSON(status int, data interface{}) {
 	view.JSON(ctx.W, status, data)
+}
+func (ctx *Context) JS(status int, data interface{}) {
+	buf := bytes.NewBufferString("<!DOCTYPE html><html><script src=/js/mithril.js></script><script src=/js/app.js></script><script>var cache = cache || {}; cache.data = ")
+	json.NewEncoder(buf).Encode(data)
+	buf.Write([]byte("console.log('data', cache.data)"))
+	buf.Write([]byte("</script>"))
+	buf.Write([]byte("</html>"))
+	ctx.W.Header().Set("Content-Type", "text/html")
+	ctx.W.Header().Set("Content-Length", strconv.Itoa(len(buf.Bytes())))
+	ctx.W.Write(buf.Bytes())
+}
+
+func (ctx *Context) Render(status int, buffer *bytes.Buffer) {
+	ctx.W.WriteHeader(status)
+	ctx.W.Write(buffer.Bytes())
+}
+
+func (ctx *Context) RenderPDF(bytes []byte) {
+	ctx.W.Header().Set("Content-Type", "application/PDF")
+	ctx.W.Header().Set("Content-Length", strconv.Itoa(len(bytes)))
+	ctx.W.Write(bytes)
 }
