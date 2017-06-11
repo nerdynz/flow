@@ -47,7 +47,7 @@ func (ctx *Context) JSON(status int, data interface{}) {
 	view.JSON(ctx.W, status, data)
 }
 func (ctx *Context) SPA(status int, data *PageInfo) {
-	data.DocumentTitle = data.Title + " - " + data.SiteInfo.Tagline + " - " + data.SiteInfo.SiteName
+	data.DocumentTitle = data.Title + " - " + data.SiteInfo.Tagline + " - " + data.SiteInfo.Sitename
 	// logrus.Info(strings.ToLower(ctx.Req.Header.Get("Accept")))
 	if strings.Contains(strings.ToLower(ctx.Req.Header.Get("Accept")), "application/json") {
 		ctx.JSON(status, data)
