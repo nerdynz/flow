@@ -96,7 +96,7 @@ func (ctx *Context) SPA(status int, data *PageInfo) {
 
 		json.NewEncoder(buf).Encode(data)
 		buf.Write([]byte(`</script>
-			<link href="/css/main.css" rel="stylesheet" />
+			<link href="/css/main.css" rel="stylesheet" media="none" />
 			<script data-main="js/app" src="/js/require.js"></script>
 			</body>
 		`))
