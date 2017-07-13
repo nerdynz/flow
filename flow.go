@@ -64,12 +64,17 @@ func (ctx *Context) URLIntParam(key string) (int, error) {
 	return strconv.Atoi(ctx.URLParam(key))
 }
 
-// func (ctx *Context) Publish(cat string, data interface{}) error {
-// 	if ctx.Store.EventBus == nil {
-// 		return errors.New("Long Polling Event Manager not initialised")
-// 	}
-// 	return ctx.Store.EventBus.Publish(cat, data)
-// }
+func (ctx *Context) URLIntParamWithDefault(key string, deefault int) int {
+	val := ctx.URLParam(key)
+	if val == "" {
+		return deefault // default
+	}
+	c, err := strconv.Atoi(ctx.URLParam(key))
+	if err != nil {
+		return deefault // default
+	}
+	return c
+}
 
 func (ctx *Context) JSON(status int, data interface{}) {
 	view.JSON(ctx.W, status, data)
