@@ -80,8 +80,27 @@ func (ctx *Context) JSON(status int, data interface{}) {
 	view.JSON(ctx.W, status, data)
 }
 
-func (ctx *Context) SPA(status int, data *PageInfo) {
-	data.DocumentTitle = data.Title + " - " + data.SiteInfo.Tagline + " - " + data.SiteInfo.Sitename
+func (ctx *Context) ErrorJSON(status int, friendly string, err error) {
+	data := struct {
+		Friendly string
+		Error    string
+	}{
+		friendly,
+		err.Error(),
+	}
+
+	view.JSON(ctx.W, status, data)
+}
+
+func (ctx *Context) ErrorPage(status int, data interface{}) {
+	view.JSON(ctx.W, status, data)
+}
+
+func (ctx *Context) SPA(status int, pageInfo *PageInfo, data interface{}) {
+	pageInfo.DocumentTitle = pageInfo.Title
+	if pageInfo.SiteInfo != nil {
+		pageInfo.DocumentTitle = pageInfo.Title + " - " + pageInfo.SiteInfo.Tagline + " - " + pageInfo.SiteInfo.Sitename
+	}
 	// logrus.Info(strings.ToLower(ctx.Req.Header.Get("Accept")))
 	if strings.Contains(strings.ToLower(ctx.Req.Header.Get("Accept")), "application/json") {
 		ctx.JSON(status, data)
@@ -90,37 +109,38 @@ func (ctx *Context) SPA(status int, data *PageInfo) {
 		buf := bytes.NewBufferString(`<!DOCTYPE html>
 		<html>
 			<head>
-				<title>` + data.DocumentTitle + `</title>
+				<title>` + pageInfo.DocumentTitle + `</title>
 				<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
 				<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
 				<link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
 				<link rel="manifest" href="/icons/manifest.json">
 				<link rel="mask-icon" href="/icons/safari-pinned-tab.svg" color="#5bbad5">
-				<meta name="theme-color" content="#ffffff">
 				
-				<meta name="description" content="` + data.Description + `">
+				<meta charset="utf-8">
+    		<meta http-equiv="x-ua-compatible" content="ie=edge">
+    		<meta name="viewport" content="width=device-width, initial-scale=1">
+				<meta name="theme-color" content="#ffffff">
+
+				<meta name="description" content="` + pageInfo.Description + `">
 				<meta name="robots" content="index, follow">
-				<meta property="og:title" content="` + data.Title + `">
+				<meta property="og:title" content="` + pageInfo.Title + `">
 
 				<meta property="og:type" content="website">
-				<meta property="og:description" content="` + data.Description + `">
-				<meta property="og:image" content="` + data.Image + `">
+				<meta property="og:description" content="` + pageInfo.Description + `">
+				<meta property="og:image" content="` + pageInfo.Image + `">
 				<meta property="og:url" content="` + url.RequestURI() + `">
 
-				<meta name="twitter:title" content="` + data.Title + `">
+				<meta name="twitter:title" content="` + pageInfo.Title + `">
 				<meta name="twitter:card" content="summary">
 				<meta name="twitter:url" content="` + url.RequestURI() + `">
-				<meta name="twitter:image" content="` + data.Image + `">
-				<meta name="twitter:description" content="` + data.Description + `">
+				<meta name="twitter:image" content="` + pageInfo.Image + `">
+				<meta name="twitter:description" content="` + pageInfo.Description + `">
 			</head>
 			<body>
-			<div id="application"></div>
 			<script>var cache = cache || {}; cache.root = '` + url.Path + `'; cache.data = `) // continues after render
-
 		json.NewEncoder(buf).Encode(data)
 		buf.Write([]byte(`</script>
-			<link href="/css/main.css" rel="stylesheet" />
-			<script data-main="js/app" src="/js/require.js"></script>
+			<link href=/assets/css/app.e4957b7c640ca81c405e048b4179579f.css rel=stylesheet><div id=app></div><script type=text/javascript src=/assets/js/manifest.0dfb595b05cd8e35b550.js></script><script type=text/javascript src=/assets/js/vendor.52b3c6544255470e9492.js></script><script type=text/javascript src=/assets/js/app.0838ee22ac8e436d61f3.js></script>
 			</body>
 		`))
 		buf.Write([]byte("</html>"))
