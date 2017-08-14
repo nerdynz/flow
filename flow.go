@@ -1,21 +1,17 @@
 package flow
 
 import (
-	"bytes"
-	"encoding/json"
-	"fmt"
-	"html/template"
 	"net/http"
 	"net/url"
 	"strconv"
-	"time"
 
-	dat "gopkg.in/mgutz/dat.v1"
+	runner "gopkg.in/mgutz/dat.v1/sqlx-runner"
+	redis "gopkg.in/redis.v5"
 
 	"strings"
 
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/go-zoo/bone"
-	"github.com/jaybeecave/base/flash"
 	"github.com/nerdynz/datastore"
 	"github.com/nerdynz/view"
 	"github.com/unrolled/render"
@@ -25,24 +21,42 @@ type Context struct {
 	W        http.ResponseWriter
 	Req      *http.Request
 	Store    *datastore.Datastore
+	DB       *runner.DB
+	Cache    *redis.Client
+	Settings *datastore.Settings
+	S3       *s3.S3
 	Renderer *render.Render
+	Bucket   map[string]interface{}
 }
 
 func New(w http.ResponseWriter, req *http.Request, store *datastore.Datastore) *Context {
-	return &Context{
-		W:     w,
-		Req:   req,
-		Store: store,
-	}
+	c := &Context{}
+	c.W = w
+	c.Req = req
+	c.DB = store.DB
+	c.Settings = store.Settings
+	c.Cache = store.Cache
+	c.S3 = store.S3
+	c.Store = store
+	c.Renderer = store.Renderer
+	c.Bucket = make(Bucket)
+	c.populateCommonVars()
+	return c
 }
 
-func NewWithRenderer(w http.ResponseWriter, req *http.Request, store *datastore.Datastore, renderer *render.Render) *Context {
-	return &Context{
-		W:        w,
-		Req:      req,
-		Store:    store,
-		Renderer: renderer,
+func (c *Context) populateCommonVars() {
+	proto := c.Settings.Proto
+	if proto == "" {
+		proto = "http://"
 	}
+	c.Add("websiteBaseUrl", proto+c.Req.Host+"/")
+	c.Add("currentURL", c.Req.URL.Path)
+}
+
+type Bucket map[string]interface{}
+
+func (c *Context) Add(key string, value interface{}) {
+	c.Bucket[key] = value
 }
 
 func (ctx *Context) AddRenderer(renderer *render.Render) {
@@ -76,8 +90,25 @@ func (ctx *Context) URLIntParamWithDefault(key string, deefault int) int {
 	return c
 }
 
+func (ctx *Context) Redirect(newUrl string, status int) {
+	if status == 301 || status == 302 || status == 303 || status == 304 || status == 401 {
+		http.Redirect(ctx.W, ctx.Req, newUrl, status)
+		return
+	}
+	ctx.ErrorHTML(http.StatusInternalServerError, "Invalid Redirect", nil)
+}
+
+func (ctx *Context) HTML(layout string, status int) {
+	if ctx.Req.URL.Query().Get("dump") == "1" {
+		ctx.Renderer.JSON(ctx.W, status, ctx.Bucket)
+		return
+	}
+	ctx.Renderer.HTML(ctx.W, status, layout, ctx.Bucket)
+}
+
 func (ctx *Context) JSON(status int, data interface{}) {
-	view.JSON(ctx.W, status, data)
+	// render.JSON(ctx.W, status, data)
+	ctx.Renderer.JSON(ctx.W, status, data)
 }
 
 func (ctx *Context) ErrorJSON(status int, friendly string, err error) {
@@ -92,279 +123,136 @@ func (ctx *Context) ErrorJSON(status int, friendly string, err error) {
 	view.JSON(ctx.W, status, data)
 }
 
-func (ctx *Context) ErrorPage(status int, data interface{}) {
-	view.JSON(ctx.W, status, data)
-}
-
-func (ctx *Context) SPA(status int, pageInfo *PageInfo, data interface{}) {
-	pageInfo.DocumentTitle = pageInfo.Title
-	if pageInfo.SiteInfo != nil {
-		pageInfo.DocumentTitle = pageInfo.Title + " - " + pageInfo.SiteInfo.Tagline + " - " + pageInfo.SiteInfo.Sitename
-	}
-	// logrus.Info(strings.ToLower(ctx.Req.Header.Get("Accept")))
-	if strings.Contains(strings.ToLower(ctx.Req.Header.Get("Accept")), "application/json") {
-		ctx.JSON(status, data)
-	} else {
-		url := ctx.Req.URL
-		buf := bytes.NewBufferString(`<!DOCTYPE html>
-		<html>
-			<head>
-				<title>` + pageInfo.DocumentTitle + `</title>
-				<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
-				<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
-				<link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
-				<link rel="manifest" href="/icons/manifest.json">
-				<link rel="mask-icon" href="/icons/safari-pinned-tab.svg" color="#5bbad5">
-				
-				<meta charset="utf-8">
-    		<meta http-equiv="x-ua-compatible" content="ie=edge">
-    		<meta name="viewport" content="width=device-width, initial-scale=1">
-				<meta name="theme-color" content="#ffffff">
-
-				<meta name="description" content="` + pageInfo.Description + `">
-				<meta name="robots" content="index, follow">
-				<meta property="og:title" content="` + pageInfo.Title + `">
-
-				<meta property="og:type" content="website">
-				<meta property="og:description" content="` + pageInfo.Description + `">
-				<meta property="og:image" content="` + pageInfo.Image + `">
-				<meta property="og:url" content="` + url.RequestURI() + `">
-
-				<meta name="twitter:title" content="` + pageInfo.Title + `">
-				<meta name="twitter:card" content="summary">
-				<meta name="twitter:url" content="` + url.RequestURI() + `">
-				<meta name="twitter:image" content="` + pageInfo.Image + `">
-				<meta name="twitter:description" content="` + pageInfo.Description + `">
-			</head>
-			<body>
-			<script>var cache = cache || {}; cache.root = '` + url.Path + `'; cache.data = `) // continues after render
-		json.NewEncoder(buf).Encode(data)
-		buf.Write([]byte(`</script>
-			<link href=/assets/css/app.e4957b7c640ca81c405e048b4179579f.css rel=stylesheet><div id=app></div><script type=text/javascript src=/assets/js/manifest.0dfb595b05cd8e35b550.js></script><script type=text/javascript src=/assets/js/vendor.52b3c6544255470e9492.js></script><script type=text/javascript src=/assets/js/app.0838ee22ac8e436d61f3.js></script>
-			</body>
-		`))
-		buf.Write([]byte("</html>"))
-		ctx.W.Header().Set("Content-Type", "text/html")
-		ctx.W.Header().Set("Content-Length", strconv.Itoa(len(buf.Bytes())))
-		ctx.W.Write(buf.Bytes())
-	}
-}
-
-func (ctx *Context) Render(status int, buffer *bytes.Buffer) {
-	ctx.W.WriteHeader(status)
-	ctx.W.Write(buffer.Bytes())
-}
-
-func (ctx *Context) RenderPDF(bytes []byte) {
-	ctx.W.Header().Set("Content-Type", "application/PDF")
-	ctx.W.Header().Set("Content-Length", strconv.Itoa(len(bytes)))
-	ctx.W.Write(bytes)
-}
-
-type SiteInfo struct {
-	Tagline  string
-	Sitename string
-}
-
-type PageInfo struct {
-	Title         string
-	Description   string
-	URL           string
-	Image         string
-	DocumentTitle string
-	SiteInfo      *SiteInfo
-}
-
-type ViewBucket struct {
-	renderer *render.Render
-	store    *datastore.Datastore
-	w        http.ResponseWriter
-	req      *http.Request
-	Data     map[string]interface{}
-}
-
-func NewBucket(ctx *Context) *ViewBucket {
-	viewBag := ViewBucket{}
-	viewBag.w = ctx.W
-	viewBag.req = ctx.Req
-	viewBag.store = ctx.Store
-	viewBag.renderer = ctx.Renderer
-	viewBag.Data = make(map[string]interface{})
-	viewBag.Add("Now", time.Now())
-	viewBag.Add("Year", time.Now().Year())
-
-	return &viewBag
-}
-
-func (viewBag *ViewBucket) Add(key string, value interface{}) {
-	viewBag.Data[key] = value
-	// spew.Dump(viewBag.data)
-}
-
-func (viewBag *ViewBucket) LoadNavItems() {
-	var navItems []*NavItem
-	err := viewBag.store.DB.
-		Select("title", "slug").
-		From("pages").
-		QueryStructs(&navItems)
+func (ctx *Context) ErrorHTML(status int, friendly string, err error) {
+	ctx.Add("FriendlyError", friendly)
 	if err != nil {
-		panic(err)
+		ctx.Add("NastyError", err.Error())
 	}
-	viewBag.Add("NavItems", navItems)
+	ctx.Add("ErrorCode", status)
+	ctx.noTemplateHTML("error", status)
 }
 
-func (viewBag *ViewBucket) HTML(status int, templateName string) {
-
-	// automatically show the flash message if it exists
-	msg, _ := flash.GetFlash(viewBag.w, viewBag.req, "InfoMessage")
-	viewBag.Add("InfoMessage", msg) // if its blank it can be blank but atleast it will exist
-
-	viewBag.renderer.HTML(viewBag.w, status, templateName, viewBag.Data)
-}
-
-func (viewBag *ViewBucket) Text(status int, text string) {
-	viewBag.renderer.Text(viewBag.w, status, text)
-}
-
-var TemplateFunctions = template.FuncMap{
-	"javascript": javascriptTag,
-	"stylesheet": stylesheetTag,
-	"image":      imageTag,
-	"imagepath":  imagePath,
-	"content":    content,
-	"htmlblock":  htmlblock,
-	"navigation": navigation,
-	"link":       link,
-	"title":      title,
-
-	"isBlank":    isBlank,
-	"isNotBlank": isNotBlank,
-	"formatDate": formatDate,
-	"htmlsafe":   htmlSafe,
-	"gt":         greaterThan,
-}
-
-func greaterThan(num int, amt int) bool {
-	return num > amt
-}
-
-func content(contents ...string) template.HTML {
-	var str string
-	for _, content := range contents {
-		str += "<div class='standard'>" + content + "</standard>"
+func (ctx *Context) noTemplateHTML(layout string, status int) {
+	opt := render.HTMLOptions{
+		Layout: "",
 	}
-	return template.HTML(str)
+	ctx.Renderer.HTML(ctx.W, status, layout, ctx.Bucket, opt)
 }
 
-func javascriptTag(names ...string) template.HTML {
-	var str string
-	for _, name := range names {
-		str += "<script src='/js/" + name + ".js' type='text/javascript'></script>"
-	}
-	return template.HTML(str)
-}
+// func (ctx *Context) SPA(status int, pageInfo *PageInfo, data interface{}) {
+// 	pageInfo.DocumentTitle = pageInfo.Title
+// 	if pageInfo.SiteInfo != nil {
+// 		pageInfo.DocumentTitle = pageInfo.Title + " - " + pageInfo.SiteInfo.Tagline + " - " + pageInfo.SiteInfo.Sitename
+// 	}
+// 	// logrus.Info(strings.ToLower(ctx.Req.Header.Get("Accept")))
+// 	if strings.Contains(strings.ToLower(ctx.Req.Header.Get("Accept")), "application/json") {
+// 		ctx.JSON(status, data)
+// 	} else {
+// 		url := ctx.Req.URL
+// 		buf := bytes.NewBufferString(`<!DOCTYPE html>
+// 		<html>
+// 			<head>
+// 				<title>` + pageInfo.DocumentTitle + `</title>
+// 				<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
+// 				<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+// 				<link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
+// 				<link rel="manifest" href="/icons/manifest.json">
+// 				<link rel="mask-icon" href="/icons/safari-pinned-tab.svg" color="#5bbad5">
 
-func stylesheetTag(names ...string) template.HTML {
-	var str string
-	for _, name := range names {
-		str += "<link rel='stylesheet' href='/css/" + name + ".css' type='text/css' media='screen'  />\n"
-	}
-	return template.HTML(str)
-}
+// 				<meta charset="utf-8">
+//     		<meta http-equiv="x-ua-compatible" content="ie=edge">
+//     		<meta name="viewport" content="width=device-width, initial-scale=1">
+// 				<meta name="theme-color" content="#ffffff">
 
-func imagePath(name string) string {
-	return "/images/" + name
-}
+// 				<meta name="description" content="` + pageInfo.Description + `">
+// 				<meta name="robots" content="index, follow">
+// 				<meta property="og:title" content="` + pageInfo.Title + `">
 
-func imageTag(name string, class string) template.HTML {
-	return template.HTML("<image src='" + imagePath(name) + "' class='" + class + "' />")
-}
+// 				<meta property="og:type" content="website">
+// 				<meta property="og:description" content="` + pageInfo.Description + `">
+// 				<meta property="og:image" content="` + pageInfo.Image + `">
+// 				<meta property="og:url" content="` + url.RequestURI() + `">
 
-func htmlSafe(str string) template.HTML {
-	return template.HTML(str)
-}
+// 				<meta name="twitter:title" content="` + pageInfo.Title + `">
+// 				<meta name="twitter:card" content="summary">
+// 				<meta name="twitter:url" content="` + url.RequestURI() + `">
+// 				<meta name="twitter:image" content="` + pageInfo.Image + `">
+// 				<meta name="twitter:description" content="` + pageInfo.Description + `">
+// 			</head>
+// 			<body>
+// 			<script>var cache = cache || {}; cache.root = '` + url.Path + `'; cache.data = `) // continues after render
+// 		json.NewEncoder(buf).Encode(data)
+// 		buf.Write([]byte(`</script>
+// 			<link href=/assets/css/app.e4957b7c640ca81c405e048b4179579f.css rel=stylesheet><div id=app></div><script type=text/javascript src=/assets/js/manifest.0dfb595b05cd8e35b550.js></script><script type=text/javascript src=/assets/js/vendor.52b3c6544255470e9492.js></script><script type=text/javascript src=/assets/js/app.0838ee22ac8e436d61f3.js></script>
+// 			</body>
+// 		`))
+// 		buf.Write([]byte("</html>"))
+// 		ctx.W.Header().Set("Content-Type", "text/html")
+// 		ctx.W.Header().Set("Content-Length", strconv.Itoa(len(buf.Bytes())))
+// 		ctx.W.Write(buf.Bytes())
+// 	}
+// }
 
-func htmlblock(page *Page, code string) template.HTML {
-	html := "<div class='textblock editable' "
-	html += " data-textblock='page-" + strconv.FormatInt(page.PageID, 10) + "-" + code + "'"
-	html += " data-placeholder='#{placeholder}'> "
-	html += getHTMLFromTextblock(page, code)
-	html += "</div>"
-	return template.HTML(html)
-}
+// func (ctx *Context) Render(status int, buffer *bytes.Buffer) {
+// 	ctx.W.WriteHeader(status)
+// 	ctx.W.Write(buffer.Bytes())
+// }
 
-func link(text string, link string, viewBag *ViewBucket) template.HTML {
-	class := "link link-" + strings.ToLower(text)
-	if strings.ToLower(link) == viewBag.req.URL.Path {
-		class += " active"
-	}
-	return template.HTML(fmt.Sprintf(`<a class="%v" href="%v">%v</a>`, class, link, text))
-}
+// func (ctx *Context) RenderPDF(bytes []byte) {
+// 	ctx.W.Header().Set("Content-Type", "application/PDF")
+// 	ctx.W.Header().Set("Content-Length", strconv.Itoa(len(bytes)))
+// 	ctx.W.Write(bytes)
+// }
 
-func title(text string) string {
-	return strings.Title(text)
-}
+// type SiteInfo struct {
+// 	Tagline  string
+// 	Sitename string
+// }
 
-func navigation(viewBag *ViewBucket) template.HTML {
-	html := ""
-	if viewBag.Data["NavItems"] != nil {
-		navItems := viewBag.Data["NavItems"].([]*NavItem)
-		html = "<nav class='main-nav closed'>"
-		for _, navItem := range navItems {
-			html += "<a href='/" + navItem.Slug + "'>" + navItem.Title + "</a>"
-		}
-		html += "</nav>"
-	}
-	return template.HTML(html)
-}
+// type PageInfo struct {
+// 	Title         string
+// 	Description   string
+// 	URL           string
+// 	Image         string
+// 	DocumentTitle string
+// 	SiteInfo      *SiteInfo
+// }
 
-func isBlank(str string) bool {
-	return str == ""
-}
+// type ViewBucket struct {
+// 	renderer *render.Render
+// 	store    *datastore.Datastore
+// 	w        http.ResponseWriter
+// 	req      *http.Request
+// 	Data     map[string]interface{}
+// }
 
-func isNotBlank(str string) bool {
-	return !isBlank(str)
-}
+// func NewBucket(ctx *Context) *ViewBucket {
+// 	viewBag := ViewBucket{}
+// 	viewBag.w = ctx.W
+// 	viewBag.req = ctx.Req
+// 	viewBag.store = ctx.Store
+// 	viewBag.renderer = ctx.Renderer
+// 	viewBag.Data = make(map[string]interface{})
+// 	viewBag.Add("Now", time.Now())
+// 	viewBag.Add("Year", time.Now().Year())
 
-type Page struct {
-	PageID     int64        `db:"page_id"`
-	Title      string       `db:"title"`
-	Body       string       `db:"body"`
-	Slug       string       `db:"slug"`
-	Template   string       `db:"template"`
-	CreatedAt  dat.NullTime `db:"created_at"`
-	UpdatedAt  dat.NullTime `db:"updated_at"`
-	Textblocks []*Textblock
-}
+// 	return &viewBag
+// }
 
-type NavItem struct {
-	Title string `db:"title"`
-	Slug  string `db:"slug"`
-}
+// func (viewBag *ViewBucket) Add(key string, value interface{}) {
+// 	viewBag.Data[key] = value
+// 	// spew.Dump(viewBag.data)
+// }
 
-func (navItem *NavItem) getURL() string {
-	return ""
-}
+// func (viewBag *ViewBucket) HTML(status int, templateName string) {
 
-type Textblock struct {
-	TextblockID int64        `db:"textblock_id"`
-	Code        string       `db:"code"`
-	Body        string       `db:"body"`
-	CreatedAt   dat.NullTime `db:"created_at"`
-	UpdatedAt   dat.NullTime `db:"updated_at"`
-	PageID      int64        `db:"page_id"`
-}
+// 	// automatically show the flash message if it exists
+// 	msg, _ := flash.GetFlash(viewBag.w, viewBag.req, "InfoMessage")
+// 	viewBag.Add("InfoMessage", msg) // if its blank it can be blank but atleast it will exist
 
-func getHTMLFromTextblock(page *Page, code string) string {
-	var body string
-	for _, tb := range page.Textblocks {
-		if tb.Code == code {
-			body = tb.Body
-		}
-	}
-	return body
-}
+// 	viewBag.renderer.HTML(viewBag.w, status, templateName, viewBag.Data)
+// }
 
-func formatDate(time time.Time, layout string) string {
-	return time.Format(layout)
-}
+// func (viewBag *ViewBucket) Text(status int, text string) {
+// 	viewBag.renderer.Text(viewBag.w, status, text)
+// }
