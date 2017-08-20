@@ -118,12 +118,16 @@ func (ctx *Context) JSON(status int, data interface{}) {
 }
 
 func (ctx *Context) ErrorJSON(status int, friendly string, err error) {
+	errStr := ""
+	if err != nil {
+		errStr = err.Error()
+	}
 	data := struct {
 		Friendly string
 		Error    string
 	}{
 		friendly,
-		err.Error(),
+		errStr,
 	}
 
 	view.JSON(ctx.W, status, data)
