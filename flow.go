@@ -104,6 +104,10 @@ func (ctx *Context) PDF(bytes []byte) {
 	ctx.W.Write(bytes)
 }
 
+func (ctx *Context) Text(status int, str string) {
+	ctx.Renderer.Text(ctx.W, status, str)
+}
+
 func (ctx *Context) HTML(layout string, status int) {
 	if ctx.Req.URL.Query().Get("dump") == "1" {
 		ctx.Renderer.JSON(ctx.W, status, ctx.Bucket)
