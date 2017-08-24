@@ -13,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/go-zoo/bone"
 	"github.com/nerdynz/datastore"
+	"github.com/nerdynz/security"
 	"github.com/nerdynz/view"
 	"github.com/unrolled/render"
 )
@@ -26,6 +27,7 @@ type Context struct {
 	Settings *datastore.Settings
 	S3       *s3.S3
 	Renderer *render.Render
+	Padlock  *security.Padlock
 	Bucket   map[string]interface{}
 }
 
@@ -40,6 +42,7 @@ func New(w http.ResponseWriter, req *http.Request, store *datastore.Datastore) *
 	c.Store = store
 	c.Renderer = store.Renderer
 	c.Bucket = make(Bucket)
+	c.Padlock = security.New(req, store)
 	c.populateCommonVars()
 	return c
 }
@@ -49,7 +52,26 @@ func (c *Context) populateCommonVars() {
 	if proto == "" {
 		proto = "http://"
 	}
-	c.Add("websiteBaseUrl", proto+c.Req.Host+"/")
+
+	facebookRedirectURL := c.Settings.Get("FACEBOOK_REDIRECT_URL")
+	facebookClientID := c.Settings.Get("FACEBOOK_APP_ID")
+	if facebookRedirectURL != "" {
+		// u, err := url.Parse(facebookRedirectURL)
+		// if err != nil {
+		c.Add("FacebookRedirectURL", facebookRedirectURL)
+		// }
+	}
+	if facebookClientID != "" {
+		c.Add("FacebookAppID", facebookClientID)
+	}
+
+	loggedInUser, _ := c.Padlock.LoggedInUser()
+	c.Add("IsLoggedIn", loggedInUser != nil)
+	if loggedInUser != nil {
+		c.Add("LoggedInUser", loggedInUser)
+	}
+
+	c.Add("websiteBaseURL", proto+c.Req.Host+"/")
 	c.Add("currentURL", c.Req.URL.Path)
 }
 
@@ -64,7 +86,15 @@ func (ctx *Context) AddRenderer(renderer *render.Render) {
 }
 
 func (ctx *Context) URLParam(key string) string {
+	// try route param
 	value := bone.GetValue(ctx.Req, key)
+
+	// try qs
+	if value == "" {
+		value = ctx.Req.URL.Query().Get(key)
+	}
+
+	// do we have a value
 	if value != "" {
 		newValue, err := url.QueryUnescape(value)
 		if err == nil {
@@ -88,6 +118,10 @@ func (ctx *Context) URLIntParamWithDefault(key string, deefault int) int {
 		return deefault // default
 	}
 	return c
+}
+
+func (ctx *Context) SetCookie(cookie *http.Cookie) {
+	http.SetCookie(ctx.W, cookie)
 }
 
 func (ctx *Context) Redirect(newUrl string, status int) {
