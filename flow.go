@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 
 	runner "gopkg.in/mgutz/dat.v1/sqlx-runner"
 	redis "gopkg.in/redis.v5"
@@ -45,6 +46,16 @@ func New(w http.ResponseWriter, req *http.Request, store *datastore.Datastore) *
 	c.Padlock = security.New(req, store)
 	c.populateCommonVars()
 	return c
+}
+
+func (c *Context) GetCacheValue(key string) (string, error) {
+	val := c.Cache.Get(key)
+	return val.Result()
+}
+
+func (c *Context) SetCacheValue(key string, value interface{}, duration time.Duration) (string, error) {
+	val := c.Cache.Set(key, value, duration)
+	return val.Result()
 }
 
 func (c *Context) populateCommonVars() {
