@@ -3,6 +3,7 @@ package flow
 import (
 	"net/http"
 	"net/url"
+	"runtime"
 	"strconv"
 	"time"
 
@@ -10,6 +11,8 @@ import (
 	redis "gopkg.in/redis.v5"
 
 	"strings"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/go-zoo/bone"
@@ -167,19 +170,50 @@ func (ctx *Context) JSON(status int, data interface{}) {
 }
 
 func (ctx *Context) ErrorJSON(status int, friendly string, err error) {
+	//https: //stackoverflow.com/questions/24809287/how-do-you-get-a-golang-program-to-print-the-line-number-of-the-error-it-just-ca
 	errStr := ""
+	lineNumber := -1
+	funcName := "Not Specified"
+	fileName := "Not Specified"
+
 	if err != nil {
 		errStr = err.Error()
-	}
-	data := struct {
-		Friendly string
-		Error    string
-	}{
-		friendly,
-		errStr,
+		// notice that we're using 1, so it will actually log the where
+		// the error happened, 0 = this function, we don't want that.
+		pc, file, line, _ := runtime.Caller(1)
+		lineNumber = line
+		funcName = runtime.FuncForPC(pc).Name()
+		fileName = file
 	}
 
+	data := &errorData{
+		friendly,
+		errStr,
+		lineNumber,
+		funcName,
+		fileName,
+	}
+
+	log.Error(data.nicelyFormatted())
 	view.JSON(ctx.W, status, data)
+}
+
+type errorData struct {
+	Friendly     string
+	Error        string
+	LineNumber   int
+	FunctionName string
+	FileName     string
+}
+
+func (e *errorData) nicelyFormatted() string {
+	str := ""
+	str += "Friendly Message: \n\t" + e.Friendly + "\n"
+	str += "Error: \n\t" + e.Error + "\n"
+	str += "FileName: \n\t" + e.FileName
+	str += "LineNumber: \n\t" + strconv.Itoa(e.LineNumber) + "\n"
+	str += "FunctionName: \n\t" + e.FunctionName + "\n"
+	return str
 }
 
 func (ctx *Context) ErrorHTML(status int, friendly string, err error) {
