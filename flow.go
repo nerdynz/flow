@@ -210,7 +210,7 @@ func (e *errorData) nicelyFormatted() string {
 	str := ""
 	str += "Friendly Message: \n\t" + e.Friendly + "\n"
 	str += "Error: \n\t" + e.Error + "\n"
-	str += "FileName: \n\t" + e.FileName
+	str += "FileName: \n\t" + e.FileName + "\n"
 	str += "LineNumber: \n\t" + strconv.Itoa(e.LineNumber) + "\n"
 	str += "FunctionName: \n\t" + e.FunctionName + "\n"
 	return str
