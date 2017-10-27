@@ -122,6 +122,23 @@ func (ctx *Context) URLIntParam(key string) (int, error) {
 	return strconv.Atoi(ctx.URLParam(key))
 }
 
+func (ctx *Context) URLBoolParam(key string) bool {
+	val := ctx.URLParam(key)
+	if val == "yes" {
+		return true
+	}
+	if val == "1" {
+		return true
+	}
+	if val == "y" {
+		return true
+	}
+	if val == "✓" {
+		return true
+	}
+	return false
+}
+
 func (ctx *Context) URLIntParamWithDefault(key string, deefault int) int {
 	val := ctx.URLParam(key)
 	if val == "" {
