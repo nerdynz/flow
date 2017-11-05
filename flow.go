@@ -169,6 +169,12 @@ func (ctx *Context) PDF(bytes []byte) {
 	ctx.W.Write(bytes)
 }
 
+func (ctx *Context) Excel(bytes []byte, filename string) {
+	ctx.W.Header().Set("Content-Type", "application/vnd.ms-excel")
+	ctx.W.Header().Set("Content-Disposition", `filename="`+filename+`.xlsx"`)
+	ctx.W.Write(bytes)
+}
+
 func (ctx *Context) Text(status int, str string) {
 	ctx.Renderer.Text(ctx.W, status, str)
 }
