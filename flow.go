@@ -124,6 +124,9 @@ func (ctx *Context) URLIntParam(key string) (int, error) {
 
 func (ctx *Context) URLBoolParam(key string) bool {
 	val := ctx.URLParam(key)
+	if val == "true" {
+		return true
+	}
 	if val == "yes" {
 		return true
 	}
