@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/boltdb/bolt"
 
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/go-zoo/bone"
@@ -33,7 +32,6 @@ type Context struct {
 	S3       *s3.S3
 	Renderer *render.Render
 	Padlock  *security.Padlock
-	Bolt     *bolt.DB
 	Bucket   map[string]interface{}
 }
 
@@ -49,7 +47,6 @@ func New(w http.ResponseWriter, req *http.Request, store *datastore.Datastore) *
 	c.Renderer = store.Renderer
 	c.Bucket = make(Bucket)
 	c.Padlock = security.New(req, store)
-	c.Bolt = store.Bolt
 	c.populateCommonVars()
 	return c
 }
@@ -187,7 +184,7 @@ func (ctx *Context) Text(status int, str string) {
 
 func (ctx *Context) HTML(layout string, status int) {
 	if ctx.Req.URL.Query().Get("dump") == "1" {
-		ctx.Renderer.JSON(ctx.W, status, ctx.Bucket)
+		ctx.Renderer.HTML(ctx.W, status, "error", ctx.Bucket)
 		return
 	}
 	ctx.Renderer.HTML(ctx.W, status, layout, ctx.Bucket)
@@ -378,37 +375,3 @@ func (ctx *Context) noTemplateHTML(layout string, status int) {
 // func (viewBag *ViewBucket) Text(status int, text string) {
 // 	viewBag.renderer.Text(viewBag.w, status, text)
 // }
-
-func (ctx *Context) GetVal(key []byte) ([]byte, error) {
-	tx, err := ctx.Bolt.Begin(false)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-	bkt := tx.Bucket([]byte("attachments"))
-	b := bkt.Get(key)
-	// err = tx.Commit()
-	return b, err
-}
-
-// func (ctx *Context) HasAttachment(key []byte) bool {
-// 	b, _ := ctx.Attachment(key)
-// 	if len(b) > 0 {
-// 		return true
-// 	}
-// 	return false
-// }
-
-func (ctx *Context) PutVal(key []byte, val []byte) error {
-	tx, err := ctx.Bolt.Begin(true)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	bkt := tx.Bucket([]byte("attachments"))
-	err = bkt.Put(key, val)
-	if err != nil {
-		return err
-	}
-	return tx.Commit()
-}
