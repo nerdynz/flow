@@ -188,7 +188,7 @@ func (ctx *Context) HTML(layout string, status int) {
 		return
 	}
 	if ctx.Req.Header.Get("X-PJAX") == "true" {
-		ctx.Renderer.HTML(ctx.W, status, "error", ctx.Bucket, render.HTMLOptions{
+		ctx.Renderer.HTML(ctx.W, status, layout, ctx.Bucket, render.HTMLOptions{
 			// Layout template name. Overrides Options.Layout.
 			Layout: "pjax",
 		})
