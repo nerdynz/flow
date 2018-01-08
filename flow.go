@@ -99,6 +99,30 @@ func (ctx *Context) AddRenderer(renderer *render.Render) {
 	ctx.Renderer = renderer
 }
 
+func (ctx *Context) URLValues(key string) ([]string, error) {
+	err := ctx.Req.ParseForm()
+	if err != nil {
+		return nil, err
+	}
+	return ctx.Req.Form[key], nil
+}
+
+func (ctx *Context) URLIntValues(key string) ([]int, error) {
+	vals, err := ctx.URLValues(key)
+	if err != nil {
+		return nil, err
+	}
+	ints := make([]int, 0)
+	for _, val := range vals {
+		iVal, err := strconv.Atoi(val)
+		if err != nil {
+			return nil, err
+		}
+		ints = append(ints, iVal)
+	}
+	return ints, nil
+}
+
 func (ctx *Context) URLParam(key string) string {
 	// try route param
 	value := bone.GetValue(ctx.Req, key)
@@ -120,6 +144,11 @@ func (ctx *Context) URLParam(key string) string {
 
 func (ctx *Context) URLIntParam(key string) (int, error) {
 	return strconv.Atoi(ctx.URLParam(key))
+}
+
+func (ctx *Context) URLDateParam(key string) (time.Time, error) {
+	var dt = ctx.URLParam(key)
+	return time.Parse(time.RFC3339Nano, dt)
 }
 
 func (ctx *Context) URLBoolParam(key string) bool {
