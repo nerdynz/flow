@@ -14,7 +14,6 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 
-	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/go-zoo/bone"
 	"github.com/nerdynz/datastore"
 	"github.com/nerdynz/security"
@@ -29,7 +28,6 @@ type Context struct {
 	DB       *runner.DB
 	Cache    *redis.Client
 	Settings *datastore.Settings
-	S3       *s3.S3
 	Renderer *render.Render
 	Padlock  *security.Padlock
 	Bucket   map[string]interface{}
@@ -42,7 +40,6 @@ func New(w http.ResponseWriter, req *http.Request, store *datastore.Datastore) *
 	c.DB = store.DB
 	c.Settings = store.Settings
 	c.Cache = store.Cache
-	c.S3 = store.S3
 	c.Store = store
 	c.Renderer = store.Renderer
 	c.Bucket = make(Bucket)
