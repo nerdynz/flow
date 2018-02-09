@@ -48,6 +48,10 @@ func New(w http.ResponseWriter, req *http.Request, store *datastore.Datastore) *
 	return c
 }
 
+func (c *Context) SiteID() int {
+	return c.Padlock.SiteID() // short hand... will panic if used improperly
+}
+
 func (c *Context) GetCacheValue(key string) (string, error) {
 	val := c.Cache.Get(key)
 	return val.Result()
