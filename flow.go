@@ -88,6 +88,8 @@ func (c *Context) populateCommonVars() {
 
 	c.Add("websiteBaseURL", proto+c.Req.Host+"/")
 	c.Add("currentURL", c.Req.URL.Path)
+	c.Add("Now", time.Now())
+	c.Add("Year", time.Now().Year())
 }
 
 type Bucket map[string]interface{}
