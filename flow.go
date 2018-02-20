@@ -214,19 +214,28 @@ func (ctx *Context) Text(status int, str string) {
 	ctx.Renderer.Text(ctx.W, status, str)
 }
 
-func (ctx *Context) HTML(layout string, status int) {
+func (ctx *Context) HTMLalt(layout string, status int, master string) {
 	if ctx.Req.URL.Query().Get("dump") == "1" {
 		ctx.Renderer.HTML(ctx.W, status, "error", ctx.Bucket)
 		return
 	}
 	if ctx.Req.Header.Get("X-PJAX") == "true" {
 		ctx.Renderer.HTML(ctx.W, status, layout, ctx.Bucket, render.HTMLOptions{
-			// Layout template name. Overrides Options.Layout.
 			Layout: "pjax",
 		})
 		return
 	}
+	if master != "" {
+		ctx.Renderer.HTML(ctx.W, status, layout, ctx.Bucket, render.HTMLOptions{
+			Layout: master,
+		})
+		return
+	}
 	ctx.Renderer.HTML(ctx.W, status, layout, ctx.Bucket)
+}
+
+func (ctx *Context) HTML(layout string, status int) {
+	ctx.HTMLalt(layout, status, "")
 }
 
 func (ctx *Context) JSON(status int, data interface{}) {
