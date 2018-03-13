@@ -1,6 +1,7 @@
 package flow
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"runtime"
@@ -39,7 +40,6 @@ func New(w http.ResponseWriter, req *http.Request, store *datastore.Datastore) *
 	c.Req = req
 	c.DB = store.DB
 	c.Settings = store.Settings
-	c.Cache = store.Cache
 	c.Store = store
 	c.Renderer = store.Renderer
 	c.Bucket = make(Bucket)
@@ -53,13 +53,11 @@ func (c *Context) SiteID() int {
 }
 
 func (c *Context) GetCacheValue(key string) (string, error) {
-	val := c.Cache.Get(key)
-	return val.Result()
+	return c.Store.GetCacheValue(key)
 }
 
 func (c *Context) SetCacheValue(key string, value interface{}, duration time.Duration) (string, error) {
-	val := c.Cache.Set(key, value, duration)
-	return val.Result()
+	return c.Store.SetCacheValue(key, value, duration)
 }
 
 func (c *Context) populateCommonVars() {
@@ -304,6 +302,34 @@ func (ctx *Context) noTemplateHTML(layout string, status int) {
 		Layout: "",
 	}
 	ctx.Renderer.HTML(ctx.W, status, layout, ctx.Bucket, opt)
+}
+
+func (ctx *Context) BroadcastToCurrentSite(t string, data interface{}) error {
+	s := strconv.Itoa(ctx.SiteID())
+	return ctx.Broadcast("room-"+s, t, data)
+}
+
+func (ctx *Context) BroadcastToSite(siteID int, t string, data interface{}) error {
+	s := strconv.Itoa(siteID)
+	return ctx.Broadcast("room-"+s, t, data)
+}
+
+func (ctx *Context) Broadcast(room string, t string, data interface{}) error {
+	bc := &broadcast{
+		Type: strings.Title(t),
+		Data: data,
+	}
+	b, err := json.Marshal(bc)
+	if err != nil {
+		return err
+	}
+	err = ctx.Store.Websocket.Broadcast(room, string(b))
+	return err
+}
+
+type broadcast struct {
+	Type string
+	Data interface{}
 }
 
 // func (ctx *Context) SPA(status int, pageInfo *PageInfo, data interface{}) {
