@@ -66,6 +66,11 @@ func (c *Context) populateCommonVars() {
 		proto = "http://"
 	}
 
+	gaTag := c.Settings.Get("GA_TAG")
+	if gaTag != "" {
+		c.Add("GAtag", gaTag)
+	}
+
 	facebookRedirectURL := c.Settings.Get("FACEBOOK_REDIRECT_URL")
 	facebookClientID := c.Settings.Get("FACEBOOK_APP_ID")
 	if facebookRedirectURL != "" {
