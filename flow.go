@@ -190,6 +190,14 @@ func (ctx *Context) URLIntParamWithDefault(key string, deefault int) int {
 	return c
 }
 
+func (ctx *Context) URLUnique() string {
+	val := ctx.URLParam("uniqueid")
+	if val == "" {
+		val = ctx.URLParam("ulid")
+	}
+	return strings.ToUpper(val)
+}
+
 func (ctx *Context) SetCookie(cookie *http.Cookie) {
 	http.SetCookie(ctx.W, cookie)
 }
