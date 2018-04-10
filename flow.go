@@ -255,15 +255,17 @@ func (ctx *Context) JSON(status int, data interface{}) {
 	ctx.Renderer.JSON(ctx.W, status, data)
 }
 
-func (ctx *Context) ErrorJSON(status int, friendly string, err error) {
+func (ctx *Context) ErrorJSON(status int, friendly string, errs ...error) {
 	//https: //stackoverflow.com/questions/24809287/how-do-you-get-a-golang-program-to-print-the-line-number-of-the-error-it-just-ca
 	errStr := ""
 	lineNumber := -1
 	funcName := "Not Specified"
 	fileName := "Not Specified"
 
-	if err != nil {
-		errStr = err.Error()
+	if len(errs) > 0 {
+		for _, err := range errs {
+			errStr += err.Error() + "\n"
+		}
 		// notice that we're using 1, so it will actually log the where
 		// the error happened, 0 = this function, we don't want that.
 		pc, file, line, _ := runtime.Caller(1)
