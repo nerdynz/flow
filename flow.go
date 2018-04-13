@@ -255,7 +255,15 @@ func (ctx *Context) JSON(status int, data interface{}) {
 	ctx.Renderer.JSON(ctx.W, status, data)
 }
 
-func (ctx *Context) ErrorJSON(status int, friendly string, errs ...error) {
+func (ctx *Context) ErrorText(status int, friendly string, errs ...error) {
+	ctx.errorOut(true, status, friendly, errs...)
+}
+
+func (ctx *Context) ErrorJSON(isText bool, status int, friendly string, errs ...error) {
+	ctx.errorOut(false, status, friendly, errs...)
+}
+
+func (ctx *Context) errorOut(isText bool, status int, friendly string, errs ...error) {
 	//https: //stackoverflow.com/questions/24809287/how-do-you-get-a-golang-program-to-print-the-line-number-of-the-error-it-just-ca
 	errStr := ""
 	lineNumber := -1
@@ -283,6 +291,10 @@ func (ctx *Context) ErrorJSON(status int, friendly string, errs ...error) {
 	}
 
 	log.Error(data.nicelyFormatted())
+	if isText {
+		ctx.Renderer.Text(ctx.W, status, data.nicelyFormatted())
+		return
+	}
 	view.JSON(ctx.W, status, data)
 }
 
