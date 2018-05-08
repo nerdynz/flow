@@ -158,6 +158,11 @@ func (ctx *Context) URLDateParam(key string) (time.Time, error) {
 	return time.Parse(time.RFC3339Nano, dt)
 }
 
+func (ctx *Context) URLShortDateParam(key string) (time.Time, error) {
+	var dt = ctx.URLParam(key)
+	return time.Parse("20060102", dt)
+}
+
 func (ctx *Context) URLBoolParam(key string) bool {
 	val := ctx.URLParam(key)
 	if val == "true" {
