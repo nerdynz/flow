@@ -41,6 +41,7 @@ func New(w http.ResponseWriter, req *http.Request, store *datastore.Datastore) *
 	c.DB = store.DB
 	c.Settings = store.Settings
 	c.Store = store
+	c.Cache = store.Cache
 	c.Renderer = store.Renderer
 	c.Bucket = make(Bucket)
 	c.Padlock = security.New(req, store)
