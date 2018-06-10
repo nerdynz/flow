@@ -8,12 +8,12 @@ import (
 	"strconv"
 	"time"
 
-	runner "gopkg.in/mgutz/dat.v1/sqlx-runner"
+	runner "github.com/nerdynz/dat/sqlx-runner"
 	redis "gopkg.in/redis.v5"
 
 	"strings"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/go-zoo/bone"
 	"github.com/nerdynz/datastore"
