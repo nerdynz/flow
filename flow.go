@@ -1,6 +1,7 @@
 package flow
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/url"
@@ -254,6 +255,12 @@ func (ctx *Context) HTMLalt(layout string, status int, master string) {
 
 func (ctx *Context) HTML(layout string, status int) {
 	ctx.HTMLalt(layout, status, "")
+}
+
+func (ctx *Context) HTMLAsText(layout string, status int) (*bytes.Buffer, error) {
+	buf := &bytes.Buffer{}
+	err := ctx.Renderer.HTML(buf, status, layout, ctx.Bucket)
+	return buf, err
 }
 
 func (ctx *Context) JSON(status int, data interface{}) {
