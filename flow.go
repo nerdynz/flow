@@ -217,6 +217,13 @@ func (ctx *Context) Redirect(newUrl string, status int) {
 	ctx.ErrorHTML(http.StatusInternalServerError, "Invalid Redirect", nil)
 }
 
+func (ctx *Context) File(bytes []byte, filename string, mime string) {
+	ctx.W.Header().Set("Content-Type", mime)
+	ctx.W.Header().Set("Content-Disposition", `filename="`+filename+`"`)
+	ctx.W.Header().Set("Content-Length", strconv.Itoa(len(bytes)))
+	ctx.W.Write(bytes)
+}
+
 func (ctx *Context) PDF(bytes []byte) {
 	ctx.W.Header().Set("Content-Type", "application/PDF")
 	ctx.W.Header().Set("Content-Length", strconv.Itoa(len(bytes)))
