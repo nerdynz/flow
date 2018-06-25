@@ -3,6 +3,7 @@ package flow
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/url"
 	"runtime"
@@ -34,6 +35,8 @@ type Context struct {
 	Padlock  *security.Padlock
 	Bucket   map[string]interface{}
 }
+
+const NO_MASTER = "NO_MASTER"
 
 func New(w http.ResponseWriter, req *http.Request, store *datastore.Datastore) *Context {
 	c := &Context{}
@@ -240,24 +243,27 @@ func (ctx *Context) Text(status int, str string) {
 	ctx.Renderer.Text(ctx.W, status, str)
 }
 
-func (ctx *Context) HTMLalt(layout string, status int, master string) {
+func (ctx *Context) HTMLalt(layout string, status int, master string) error {
+	return ctx.htmlAlt(ctx.W, layout, status, master)
+}
+func (ctx *Context) htmlAlt(w io.Writer, layout string, status int, master string) error {
 	if ctx.Req.URL.Query().Get("dump") == "1" {
-		ctx.Renderer.HTML(ctx.W, status, "error", ctx.Bucket)
-		return
+		return ctx.Renderer.HTML(w, status, "error", ctx.Bucket)
 	}
 	if ctx.Req.Header.Get("X-PJAX") == "true" {
-		ctx.Renderer.HTML(ctx.W, status, layout, ctx.Bucket, render.HTMLOptions{
+		return ctx.Renderer.HTML(w, status, layout, ctx.Bucket, render.HTMLOptions{
 			Layout: "pjax",
 		})
-		return
+	}
+	if master == NO_MASTER {
+		return ctx.Renderer.HTML(w, status, layout, ctx.Bucket, render.HTMLOptions{})
 	}
 	if master != "" {
-		ctx.Renderer.HTML(ctx.W, status, layout, ctx.Bucket, render.HTMLOptions{
+		return ctx.Renderer.HTML(w, status, layout, ctx.Bucket, render.HTMLOptions{
 			Layout: master,
 		})
-		return
 	}
-	ctx.Renderer.HTML(ctx.W, status, layout, ctx.Bucket)
+	return ctx.Renderer.HTML(w, status, layout, ctx.Bucket)
 }
 
 func (ctx *Context) HTML(layout string, status int) {
@@ -267,6 +273,11 @@ func (ctx *Context) HTML(layout string, status int) {
 func (ctx *Context) HTMLAsText(layout string, status int) (*bytes.Buffer, error) {
 	buf := &bytes.Buffer{}
 	err := ctx.Renderer.HTML(buf, status, layout, ctx.Bucket)
+	return buf, err
+}
+func (ctx *Context) HTMLAsTextAlt(layout string, status int, master string) (*bytes.Buffer, error) {
+	buf := &bytes.Buffer{}
+	err := ctx.htmlAlt(buf, layout, status, master)
 	return buf, err
 }
 
