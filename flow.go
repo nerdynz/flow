@@ -120,15 +120,15 @@ func (ctx *Context) URLValues(key string) ([]string, error) {
 }
 
 func (ctx *Context) URLIntValues(key string) ([]int, error) {
+	ints := make([]int, 0)
 	vals, err := ctx.URLValues(key)
 	if err != nil {
-		return nil, err
+		return ints, err
 	}
-	ints := make([]int, 0)
 	for _, val := range vals {
 		iVal, err := strconv.Atoi(val)
 		if err != nil {
-			return nil, err
+			return ints, err
 		}
 		ints = append(ints, iVal)
 	}
