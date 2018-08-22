@@ -321,7 +321,9 @@ func (ctx *Context) errorOut(isText bool, status int, friendly string, errs ...e
 		fileName,
 	}
 
-	log.Error(data.nicelyFormatted())
+	if status != 400 {
+		log.Error(data.nicelyFormatted())
+	}
 	if isText {
 		ctx.Renderer.Text(ctx.W, status, data.nicelyFormatted())
 		return
