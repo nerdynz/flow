@@ -33,7 +33,9 @@ type Context struct {
 	Settings *datastore.Settings
 	Renderer *render.Render
 	Padlock  *security.Padlock
+	Logger   *datastore.Logger
 	Bucket   map[string]interface{}
+	errLog   string
 }
 
 const NO_MASTER = "NO_MASTER"
@@ -49,6 +51,9 @@ func New(w http.ResponseWriter, req *http.Request, store *datastore.Datastore) *
 	c.Renderer = store.Renderer
 	c.Bucket = make(Bucket)
 	c.Padlock = security.New(req, store)
+	if store.Settings.LoggingEnabled {
+		c.Logger = datastore.NewLogger()
+	}
 	c.populateCommonVars()
 	return c
 }
@@ -63,6 +68,11 @@ func (c *Context) GetCacheValue(key string) (string, error) {
 
 func (c *Context) SetCacheValue(key string, value interface{}, duration time.Duration) (string, error) {
 	return c.Store.SetCacheValue(key, value, duration)
+}
+
+func (c *Context) Write(b []byte) (int, error) {
+	c.errLog += string(b)
+	return len(b), nil
 }
 
 func (c *Context) populateCommonVars() {
@@ -222,7 +232,7 @@ func (ctx *Context) Redirect(newUrl string, status int) {
 
 func (ctx *Context) File(bytes []byte, filename string, mime string) {
 	ctx.W.Header().Set("Content-Type", mime)
-	ctx.W.Header().Set("Content-Disposition", `filename="`+filename+`"`)
+	ctx.W.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
 	ctx.W.Header().Set("Content-Length", strconv.Itoa(len(bytes)))
 	ctx.W.Write(bytes)
 }
@@ -301,7 +311,7 @@ func (ctx *Context) errorOut(isText bool, status int, friendly string, errs ...e
 	funcName := "Not Specified"
 	fileName := "Not Specified"
 
-	if len(errs) > 0 {
+	if errs != nil && len(errs) > 0 {
 		for _, err := range errs {
 			errStr += err.Error() + "\n"
 		}
