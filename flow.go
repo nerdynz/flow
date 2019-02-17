@@ -297,11 +297,19 @@ func (ctx *Context) JSON(status int, data interface{}) {
 }
 
 func (ctx *Context) ErrorText(status int, friendly string, errs ...error) {
-	ctx.errorOut(true, status, friendly, errs...)
+	if errs != nil && len(errs) > 0 {
+		ctx.errorOut(true, status, friendly, errs...)
+	} else {
+		ctx.errorOut(true, status, friendly, nil)
+	}
 }
 
 func (ctx *Context) ErrorJSON(status int, friendly string, errs ...error) {
-	ctx.errorOut(false, status, friendly, errs...)
+	if errs != nil && len(errs) > 0 {
+		ctx.errorOut(false, status, friendly, errs...)
+	} else {
+		ctx.errorOut(false, status, friendly, nil)
+	}
 }
 
 func (ctx *Context) errorOut(isText bool, status int, friendly string, errs ...error) {
