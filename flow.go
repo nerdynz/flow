@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	runner "github.com/nerdynz/dat/sqlx-runner"
+	runner "github.com/bkono/dat/sqlx-runner"
 	redis "gopkg.in/redis.v5"
 
 	"strings"
@@ -18,7 +18,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/go-zoo/bone"
-	"github.com/nerdynz/datastore"
+	"github.com/bkono/datastore"
 	"github.com/nerdynz/security"
 	"github.com/nerdynz/view"
 	"github.com/unrolled/render"
@@ -233,6 +233,13 @@ func (ctx *Context) Redirect(newUrl string, status int) {
 func (ctx *Context) File(bytes []byte, filename string, mime string) {
 	ctx.W.Header().Set("Content-Type", mime)
 	ctx.W.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
+	ctx.W.Header().Set("Content-Length", strconv.Itoa(len(bytes)))
+	ctx.W.Write(bytes)
+}
+
+func (ctx *Context) InlineFile(bytes []byte, filename string, mime string) {
+	ctx.W.Header().Set("Content-Type", mime)
+	ctx.W.Header().Set("Content-Disposition", `inline; filename="`+filename+`"`)
 	ctx.W.Header().Set("Content-Length", strconv.Itoa(len(bytes)))
 	ctx.W.Write(bytes)
 }
