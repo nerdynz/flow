@@ -18,7 +18,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/go-zoo/bone"
-	"github.com/bkono/datastore"
+	"github.com/nerdynz/datastore"
 	"github.com/nerdynz/security"
 	"github.com/nerdynz/view"
 	"github.com/unrolled/render"
