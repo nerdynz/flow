@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	runner "github.com/bkono/dat/sqlx-runner"
+	runner "github.com/nerdynz/dat/sqlx-runner"
 	redis "gopkg.in/redis.v5"
 
 	"strings"
