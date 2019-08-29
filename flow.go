@@ -374,10 +374,29 @@ func (e *errorData) nicelyFormatted() string {
 	return str
 }
 
-func (ctx *Context) ErrorHTML(status int, friendly string, err error) {
+func (ctx *Context) ErrorHTML(status int, friendly string, errs ...error) {
+	errStr := ""
+	lineNumber := -1
+	funcName := "Not Specified"
+	fileName := "Not Specified"
 	ctx.Add("FriendlyError", friendly)
-	if err != nil {
-		ctx.Add("NastyError", err.Error())
+	if errs != nil && len(errs) > 0 {
+		for _, err := range errs {
+			errStr += err.Error() + "\n"
+		}
+		ctx.Add("NastyError", errStr)
+
+		// notice that we're using 1, so it will actually log the where
+		// the error happened, 0 = this function, we don't want that.
+		pc, file, line, _ := runtime.Caller(1)
+		lineNumber = line
+		funcName = runtime.FuncForPC(pc).Name()
+		fileName = file
+
+		ctx.Add("LineNumber", lineNumber)
+		ctx.Add("FuncName", funcName)
+		ctx.Add("FileName", fileName)
+
 	}
 	ctx.Add("ErrorCode", status)
 	ctx.noTemplateHTML("error", status)
