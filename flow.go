@@ -2,16 +2,12 @@ package flow
 
 import (
 	"bytes"
-	"encoding/json"
 	"io"
 	"net/http"
 	"net/url"
 	"runtime"
 	"strconv"
 	"time"
-
-	runner "github.com/helloeave/dat/sqlx-runner"
-	redis "gopkg.in/redis.v5"
 
 	"strings"
 
@@ -25,50 +21,62 @@ import (
 )
 
 type Context struct {
-	W        http.ResponseWriter
-	Req      *http.Request
-	Store    *datastore.Datastore
-	DB       *runner.DB
-	Cache    *redis.Client
-	Settings *datastore.Settings
-	Renderer *render.Render
-	Padlock  *security.Padlock
-	Logger   *datastore.Logger
-	Bucket   map[string]interface{}
-	errLog   string
+	W            http.ResponseWriter
+	Req          *http.Request
+	Renderer     *render.Render
+	Padlock      *security.Padlock
+	Store        *datastore.Datastore
+	Settings     datastore.Settings
+	Protocol     string
+	Bucket       map[string]interface{}
+	errLog       string
+	hasPopulated bool
 }
 
 const NO_MASTER = "NO_MASTER"
 
-func New(w http.ResponseWriter, req *http.Request, store *datastore.Datastore) *Context {
+// New manages every new request, set shortcuts here, be careful your within a "context" here
+func New(w http.ResponseWriter, req *http.Request, renderer *render.Render, store *datastore.Datastore, key security.Key) *Context {
 	c := &Context{}
 	c.W = w
 	c.Req = req
-	c.DB = store.DB
-	c.Settings = store.Settings
+	c.Renderer = renderer
 	c.Store = store
-	c.Cache = store.Cache
-	c.Renderer = store.Renderer
-	c.Bucket = make(Bucket)
-	c.Padlock = security.New(req, store)
-	if store.Settings.LoggingEnabled {
-		c.Logger = datastore.NewLogger()
+	c.Settings = store.Settings
+	c.Padlock = security.New(req, store.Settings, key)
+	c.hasPopulated = false
+
+	proto := "http://"
+	if store.Settings.IsProduction() {
+		// should be secure
+		proto = "https://"
 	}
-	c.populateCommonVars()
+	if c.Req.Header.Get("X-Forwarded-Proto") == "https" {
+		proto = "https://"
+	}
+	c.Protocol = proto
+
+	// if store.Settings.LoggingEnabled {
+	// 	c.Logger = datastore.NewLogger()
+	// }
 	return c
+}
+
+func (c *Context) WebsiteBaseURL() string {
+	return c.Store.Settings.Get("WEBSITE_BASE_URL")
 }
 
 func (c *Context) SiteID() int {
 	return c.Padlock.SiteID() // short hand... will panic if used improperly
 }
 
-func (c *Context) GetCacheValue(key string) (string, error) {
-	return c.Store.GetCacheValue(key)
-}
+// func (c *Context) GetCacheValue(key string) (string, error) {
+// 	return c.Store.GetCacheValue(key)
+// }
 
-func (c *Context) SetCacheValue(key string, value interface{}, duration time.Duration) (string, error) {
-	return c.Store.SetCacheValue(key, value, duration)
-}
+// func (c *Context) SetCacheValue(key string, value interface{}, duration time.Duration) (string, error) {
+// 	return c.Store.SetCacheValue(key, value, duration)
+// }
 
 func (c *Context) Write(b []byte) (int, error) {
 	c.errLog += string(b)
@@ -76,34 +84,17 @@ func (c *Context) Write(b []byte) (int, error) {
 }
 
 func (c *Context) populateCommonVars() {
-	proto := c.Settings.Proto
-	if proto == "" {
-		proto = "http://"
+	c.hasPopulated = true
+	c.Bucket = make(Bucket)
+	proto := "http://"
+	if c.Store.Settings.GetBool("IS_HTTPS") {
+		proto = "https://"
 	}
-
-	gaTag := c.Settings.Get("GA_TAG")
-	if gaTag != "" {
-		c.Add("GAtag", gaTag)
-	}
-
-	facebookRedirectURL := c.Settings.Get("FACEBOOK_REDIRECT_URL")
-	facebookClientID := c.Settings.Get("FACEBOOK_APP_ID")
-	if facebookRedirectURL != "" {
-		// u, err := url.Parse(facebookRedirectURL)
-		// if err != nil {
-		c.Add("FacebookRedirectURL", facebookRedirectURL)
-		// }
-	}
-	if facebookClientID != "" {
-		c.Add("FacebookAppID", facebookClientID)
-	}
-
-	loggedInUser, _ := c.Padlock.LoggedInUser()
+	loggedInUser, _, _ := c.Padlock.LoggedInUser()
 	c.Add("IsLoggedIn", loggedInUser != nil)
 	if loggedInUser != nil {
 		c.Add("LoggedInUser", loggedInUser)
 	}
-
 	c.Add("websiteBaseURL", proto+c.Req.Host+"/")
 	c.Add("currentURL", c.Req.URL.Path)
 	c.Add("currentFullURL", proto+c.Req.Host+c.Req.URL.Path)
@@ -114,6 +105,9 @@ func (c *Context) populateCommonVars() {
 type Bucket map[string]interface{}
 
 func (c *Context) Add(key string, value interface{}) {
+	if !c.hasPopulated {
+		c.populateCommonVars()
+	}
 	c.Bucket[key] = value
 }
 
@@ -264,6 +258,9 @@ func (ctx *Context) HTMLalt(layout string, status int, master string) error {
 	return ctx.htmlAlt(ctx.W, layout, status, master)
 }
 func (ctx *Context) htmlAlt(w io.Writer, layout string, status int, master string) error {
+	if !ctx.hasPopulated {
+		ctx.populateCommonVars()
+	}
 	if ctx.Req.URL.Query().Get("dump") == "1" {
 		return ctx.Renderer.HTML(w, status, "error", ctx.Bucket)
 	}
@@ -409,33 +406,33 @@ func (ctx *Context) noTemplateHTML(layout string, status int) {
 	ctx.Renderer.HTML(ctx.W, status, layout, ctx.Bucket, opt)
 }
 
-func (ctx *Context) BroadcastToCurrentSite(t string, data interface{}) error {
-	s := strconv.Itoa(ctx.SiteID())
-	return ctx.Broadcast("room-"+s, t, data)
-}
+// func (ctx *Context) BroadcastToCurrentSite(t string, data interface{}) error {
+// 	s := strconv.Itoa(ctx.SiteID())
+// 	return ctx.Broadcast("room-"+s, t, data)
+// }
 
-func (ctx *Context) BroadcastToSite(siteID int, t string, data interface{}) error {
-	s := strconv.Itoa(siteID)
-	return ctx.Broadcast("room-"+s, t, data)
-}
+// func (ctx *Context) BroadcastToSite(siteID int, t string, data interface{}) error {
+// 	s := strconv.Itoa(siteID)
+// 	return ctx.Broadcast("room-"+s, t, data)
+// }
 
-func (ctx *Context) Broadcast(room string, t string, data interface{}) error {
-	bc := &broadcast{
-		Type: strings.Title(t),
-		Data: data,
-	}
-	b, err := json.Marshal(bc)
-	if err != nil {
-		return err
-	}
-	err = ctx.Store.Websocket.Broadcast(room, string(b))
-	return err
-}
+// func (ctx *Context) Broadcast(room string, t string, data interface{}) error {
+// 	bc := &broadcast{
+// 		Type: strings.Title(t),
+// 		Data: data,
+// 	}
+// 	b, err := json.Marshal(bc)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	err = ctx.Store.Websocket.Broadcast(room, string(b))
+// 	return err
+// }
 
-type broadcast struct {
-	Type string
-	Data interface{}
-}
+// type broadcast struct {
+// 	Type string
+// 	Data interface{}
+// }
 
 // func (ctx *Context) SPA(status int, pageInfo *PageInfo, data interface{}) {
 // 	pageInfo.DocumentTitle = pageInfo.Title
@@ -553,4 +550,10 @@ type broadcast struct {
 
 // func (viewBag *ViewBucket) Text(status int, text string) {
 // 	viewBag.renderer.Text(viewBag.w, status, text)
+// }
+
+// type Settings interface {
+// 	Get(key string) string
+// 	GetBool(key string) bool
+// 	IsProduction() bool
 // }
