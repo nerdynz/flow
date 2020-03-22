@@ -87,7 +87,13 @@ func (c *Context) populateCommonVars() {
 	c.hasPopulated = true
 	c.Bucket = make(Bucket)
 	proto := "http://"
-	if c.Store.Settings.GetBool("IS_HTTPS") {
+	if c.Settings.IsDevelopment() {
+		c.Add("IsDev", true)
+		proto = "http://"
+	} else {
+		proto = "https://"
+	}
+	if c.Settings.GetBool("IS_HTTPS") {
 		proto = "https://"
 	}
 	loggedInUser, _, _ := c.Padlock.LoggedInUser()
@@ -325,7 +331,11 @@ func (ctx *Context) errorOut(isText bool, status int, friendly string, errs ...e
 
 	if errs != nil && len(errs) > 0 {
 		for _, err := range errs {
-			errStr += err.Error() + "\n"
+			if err != nil {
+				errStr += err.Error() + "\n"
+			} else {
+				errStr += "No Error Specified \n"
+			}
 		}
 		// notice that we're using 1, so it will actually log the where
 		// the error happened, 0 = this function, we don't want that.
