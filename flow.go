@@ -337,9 +337,9 @@ func (ctx *Context) errorOut(isText bool, status int, friendly string, errs ...e
 				errStr += "No Error Specified \n"
 			}
 		}
-		// notice that we're using 1, so it will actually log the where
+		// notice that we're using 1, so it will actually log the where // actually one is errorOut
 		// the error happened, 0 = this function, we don't want that.
-		pc, file, line, _ := runtime.Caller(1)
+		pc, file, line, _ := runtime.Caller(2)
 		lineNumber = line
 		funcName = runtime.FuncForPC(pc).Name()
 		fileName = file
@@ -360,6 +360,7 @@ func (ctx *Context) errorOut(isText bool, status int, friendly string, errs ...e
 		ctx.Renderer.Text(ctx.W, status, data.nicelyFormatted())
 		return
 	}
+	// ctx.Store.Logger.Error("ERROR["+strconv.Itoa(status)+"]:", data)
 	view.JSON(ctx.W, status, data)
 }
 
