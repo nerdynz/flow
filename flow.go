@@ -11,6 +11,7 @@ import (
 
 	"strings"
 
+	"github.com/oklog/ulid"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/go-zoo/bone"
@@ -67,7 +68,11 @@ func (c *Context) WebsiteBaseURL() string {
 }
 
 func (c *Context) SiteID() int {
-	return c.Padlock.SiteID() // short hand... will panic if used improperly
+	return c.Padlock.SiteID()
+}
+
+func (c *Context) SiteULID() int {
+	return c.Padlock.SiteULID()
 }
 
 // func (c *Context) GetCacheValue(key string) (string, error) {
@@ -143,6 +148,15 @@ func (ctx *Context) URLIntValues(key string) ([]int, error) {
 		ints = append(ints, iVal)
 	}
 	return ints, nil
+}
+
+func (ctx *Context) URLULIDParam(key string) (string, error) {
+	ul := strings.ToUpper(ctx.URLParam(key))
+	id, err := ulid.Parse(ul)
+	if err != nil {
+		return "", err
+	}
+	return id.String(), nil
 }
 
 func (ctx *Context) URLParam(key string) string {
