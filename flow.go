@@ -71,7 +71,7 @@ func (c *Context) SiteID() int {
 	return c.Padlock.SiteID()
 }
 
-func (c *Context) SiteULID() int {
+func (c *Context) SiteULID() (string, error) {
 	return c.Padlock.SiteULID()
 }
 
