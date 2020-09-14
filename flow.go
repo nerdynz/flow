@@ -209,7 +209,7 @@ func (ctx *Context) URLBoolParam(key string) bool {
 	if val == "✓" {
 		return true
 	}
-	return false
+	return strconv.ParseBool(val)
 }
 
 func (ctx *Context) URLIntParamWithDefault(key string, deefault int) int {
