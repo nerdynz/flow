@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"runtime"
@@ -244,7 +245,24 @@ func (flow *Flow) Redirect(newUrl string, status int) {
 		http.Redirect(flow.respWrt, flow.req, newUrl, status)
 		return
 	}
-	flow.ErrorHTML(http.StatusInternalServerError, "Invalid Redirect", nil)
+	flow.ErrorText(http.StatusInternalServerError, "Invalid Redirect", nil)
+}
+
+func (flow *Flow) StaticFile(status int, filepath string, mime string) {
+	file, err := ioutil.ReadFile(filepath)
+	if err != nil {
+		flow.ErrorText(500, "Failed to load %s", err)
+		return
+	}
+	flow.respWrt.Header().Add("content-type", mime)
+	err = flow.Renderer.Data(flow.respWrt, status, file)
+	flow.catchAfterErr(err)
+}
+
+func (flow *Flow) Data(status int, bytes []byte, mime string) {
+	flow.respWrt.Header().Add("content-type", mime)
+	err := flow.Renderer.Data(flow.respWrt, status, bytes)
+	flow.catchAfterErr(err)
 }
 
 func (flow *Flow) File(bytes []byte, filename string, mime string) {
