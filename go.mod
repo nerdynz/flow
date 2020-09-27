@@ -7,6 +7,7 @@ replace github.com/nerdynz/security => ../security
 require (
 	github.com/cznic/ql v1.2.0 // indirect
 	github.com/go-zoo/bone v1.3.0
+	github.com/google/martian v2.1.0+incompatible
 	github.com/nerdynz/dat v1.3.0 // indirect
 	github.com/nerdynz/datastore v0.0.0-20200402045006-0f63cc077d94
 	github.com/nerdynz/security v0.0.0-20200722093232-8a8c4c983b6c
