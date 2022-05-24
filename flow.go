@@ -42,7 +42,7 @@ func New(w http.ResponseWriter, req *http.Request, renderer *render.Render, stor
 	flow.req = req
 	flow.Renderer = renderer
 	flow.store = store
-	flow.Padlock = security.New(req, key)
+	flow.Padlock = security.New(req, store.Settings, key)
 	flow.hasPopulated = false
 
 	proto := "http://"
