@@ -42,7 +42,7 @@ func New(w http.ResponseWriter, req *http.Request, renderer *render.Render, stor
 	flow.req = req
 	flow.Renderer = renderer
 	flow.store = store
-	flow.Padlock = security.New(req, store.Settings, key)
+	flow.Padlock = security.New(req, key)
 	flow.hasPopulated = false
 
 	proto := "http://"
@@ -64,10 +64,6 @@ func New(w http.ResponseWriter, req *http.Request, renderer *render.Render, stor
 
 func (flow *Flow) WebsiteBaseURL() string {
 	return flow.store.Settings.Get("WEBSITE_BASE_URL")
-}
-
-func (flow *Flow) SiteID() int {
-	return flow.Padlock.SiteID()
 }
 
 func (flow *Flow) SiteULID() (string, error) {
@@ -327,7 +323,7 @@ func (flow *Flow) htmlAlt(w io.Writer, layout string, status int, master string)
 	return flow.Renderer.HTML(w, status, layout, flow.bucket.vars)
 }
 
-func (flow *Flow) HTML(bucket bucket, layout string, status int) {
+func (flow *Flow) HTML(layout string, status int) {
 	err := flow.HTMLalt(layout, status, "")
 	flow.catchAfterErr(err)
 }
