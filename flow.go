@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"io/ioutil"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"runtime"
@@ -26,7 +27,7 @@ type Flow struct {
 	req          *http.Request
 	Renderer     *render.Render
 	Padlock      *security.Padlock
-	store        *datastore.Datastore
+	Store        *datastore.Datastore
 	scheme       string
 	bucket       *bucket
 	errLog       string
@@ -41,7 +42,7 @@ func New(w http.ResponseWriter, req *http.Request, renderer *render.Render, stor
 	flow.respWrt = w
 	flow.req = req
 	flow.Renderer = renderer
-	flow.store = store
+	flow.Store = store
 	flow.Padlock = security.New(req, store.Settings, key)
 	flow.hasPopulated = false
 
@@ -63,7 +64,7 @@ func New(w http.ResponseWriter, req *http.Request, renderer *render.Render, stor
 }
 
 func (flow *Flow) WebsiteBaseURL() string {
-	return flow.store.Settings.Get("WEBSITE_BASE_URL")
+	return flow.Store.Settings.Get("WEBSITE_BASE_URL")
 }
 
 func (flow *Flow) SiteULID() (string, error) {
@@ -108,7 +109,11 @@ func (flow *Flow) populateCommonVars() {
 }
 
 type bucket struct {
-	vars map[string]interface{}
+	vars map[string]any
+}
+
+func (flow *Flow) Vars() map[string]any {
+	return flow.bucket.vars
 }
 
 func (flow *Flow) Add(key string, value interface{}) {
@@ -389,7 +394,7 @@ func (flow *Flow) errorOut(isText bool, status int, friendly string, errs ...err
 		fileName,
 	}
 
-	flow.store.Logger.Error(data.nicelyFormatted())
+	slog.Error(data.nicelyFormatted())
 
 	if isText {
 		err := flow.Renderer.Text(flow.respWrt, status, data.nicelyFormatted())
@@ -415,8 +420,8 @@ func (e *errorData) nicelyFormatted() string {
 	str := ""
 	str += "Friendly Message: \n\t" + e.Friendly + "\n"
 	str += "Error: \n\t" + e.Error + "\n"
-	str += "FileName: \n\t" + e.FileName + "\n"
-	str += "LineNumber: \n\t" + strconv.Itoa(e.LineNumber) + "\n"
+	str += "File: \n\t" + e.FileName + ":" + strconv.Itoa(e.LineNumber) + "\n"
+	// str += "LineNumber: \n\t" + strconv.Itoa(e.LineNumber) + "\n"
 	str += "FunctionName: \n\t" + e.FunctionName + "\n"
 	return str
 }
